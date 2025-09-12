@@ -3,7 +3,7 @@
  * Plugin Name: Vortex - Shareable Carts
  * Plugin URI:  https://github.com/emkowale/vortex
  * Description: Create a short link from the current cart that pre-fills WooCommerce cart for others.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      Eric Kowalewski
  * Author URI:  https://github.com/emkowale
  * License:     GPL-2.0+
