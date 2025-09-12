@@ -1,86 +1,85 @@
 <?php
-/**
- * Vortex GitHub Updater
- */
+if ( ! class_exists( 'Vortex_GitHub_Updater' ) ) :
 
-if ( ! class_exists( 'Vortex_GitHub_Updater' ) ) {
-    class Vortex_GitHub_Updater {
-        private $file;
-        private $plugin;
-        private $basename;
-        private $username;
-        private $repository;
-        private $github_response;
+class Vortex_GitHub_Updater {
+    private $file;
+    private $plugin;
+    private $basename;
+    private $active;
+    private $github_api;
 
-        public function __construct( $file ) {
-            $this->file       = $file;
-            $this->plugin     = plugin_basename( $file );
-            $this->basename   = dirname( $this->plugin );
-            $this->username   = 'emkowale';     // your GitHub username
-            $this->repository = 'vortex';       // your repo name
+    public function __construct( $file ) {
+        $this->file     = $file;
+        $this->plugin   = get_plugin_data( $file );
+        $this->basename = plugin_basename( $file );
+        $this->active   = is_plugin_active( $this->basename );
 
-            add_filter( "pre_set_site_transient_update_plugins", [ $this, "check_update" ] );
-            add_filter( "plugins_api", [ $this, "plugins_api" ], 10, 3 );
-        }
+        // Replace with YOUR repo
+        $this->github_api = 'https://api.github.com/repos/emkowale/vortex/releases/latest';
 
-        private function get_repo_release_info() {
-            if ( ! empty( $this->github_response ) ) {
-                return;
-            }
+        add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_update' ] );
+        add_filter( 'plugins_api', [ $this, 'plugin_info' ], 10, 3 );
+    }
 
-            $request = wp_remote_get( "https://api.github.com/repos/{$this->username}/{$this->repository}/releases/latest" );
+    private function get_latest_release() {
+        $response = wp_remote_get( $this->github_api, [
+            'headers' => [ 'User-Agent' => 'WordPress; ' . home_url() ]
+        ] );
 
-            if ( is_wp_error( $request ) ) {
-                return;
-            }
+        if ( is_wp_error( $response ) ) return false;
 
-            $this->github_response = json_decode( wp_remote_retrieve_body( $request ) );
-        }
+        $release = json_decode( wp_remote_retrieve_body( $response ) );
+        if ( empty( $release->tag_name ) || empty( $release->assets ) ) return false;
 
-        public function check_update( $transient ) {
-            if ( empty( $transient->checked ) ) {
-                return $transient;
-            }
+        $zip = $release->assets[0]->browser_download_url;
 
-            $this->get_repo_release_info();
+        return [
+            'version' => ltrim( $release->tag_name, 'v' ),
+            'zip'     => $zip,
+            'changelog' => $release->body ?? '',
+        ];
+    }
 
-            if ( ! isset( $this->github_response->tag_name ) ) {
-                return $transient;
-            }
+    public function check_update( $transient ) {
+        if ( empty( $transient->checked ) ) return $transient;
 
-            $remote_version = ltrim( $this->github_response->tag_name, 'v' );
-            $plugin_data    = get_plugin_data( $this->file );
-            $local_version  = $plugin_data['Version'];
+        $release = $this->get_latest_release();
+        if ( ! $release ) return $transient;
 
-            if ( version_compare( $local_version, $remote_version, '<' ) ) {
-                $package = $this->github_response->zipball_url;
+        $current_version = $this->plugin['Version'];
+        if ( version_compare( $current_version, $release['version'], '>=' ) ) return $transient;
 
-                $transient->response[ $this->plugin ] = (object) [
-                    'slug'        => $this->basename,
-                    'plugin'      => $this->plugin,
-                    'new_version' => $remote_version,
-                    'package'     => $package,
-                ];
-            }
+        $obj              = new stdClass();
+        $obj->slug        = dirname( $this->basename );
+        $obj->plugin      = $this->basename;
+        $obj->new_version = $release['version'];
+        $obj->package     = $release['zip'];
+        $obj->url         = $this->plugin['PluginURI'] ?? '';
 
-            return $transient;
-        }
+        $transient->response[ $this->basename ] = $obj;
+        return $transient;
+    }
 
-        public function plugins_api( $res, $action, $args ) {
-            if ( 'plugin_information' !== $action || $args->slug !== $this->basename ) {
-                return $res;
-            }
+    public function plugin_info( $res, $action, $args ) {
+        if ( $action !== 'plugin_information' ) return $res;
+        if ( $args->slug !== dirname( $this->basename ) ) return $res;
 
-            $this->get_repo_release_info();
+        $release = $this->get_latest_release();
+        if ( ! $release ) return $res;
 
-            return (object) [
-                'name'          => 'Vortex',
-                'slug'          => $this->basename,
-                'version'       => ltrim( $this->github_response->tag_name, 'v' ),
-                'author'        => '<a href="https://github.com/emkowale">emkowale</a>',
-                'homepage'      => "https://github.com/{$this->username}/{$this->repository}",
-                'download_link' => $this->github_response->zipball_url,
-            ];
-        }
+        return (object)[
+            'name'        => $this->plugin['Name'],
+            'slug'        => dirname( $this->basename ),
+            'version'     => $release['version'],
+            'author'      => $this->plugin['Author'],
+            'homepage'    => $this->plugin['PluginURI'] ?? '',
+            'sections'    => [
+                'description' => $this->plugin['Description'],
+                'changelog'   => nl2br( $release['changelog'] ),
+            ],
+            'download_link' => $release['zip'],
+        ];
     }
 }
+
+endif;
