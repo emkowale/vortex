@@ -1,31 +1,34 @@
-name: Build Vortex Release
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*'   # Run only when pushing a version tag like v1.0.1
+      - "v*.*.*" # only run on version tags like v1.0.1
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Prepare plugin folder
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Zip plugin
         run: |
-          mkdir -p build/vortex
-          rsync -av --exclude='.git' --exclude='.github' ./ build/vortex/
+          mkdir -p dist
+          zip -r "dist/vortex-${{ env.VERSION }}.zip" . \
+            -x "*.git*" \
+            -x ".github/*"
 
-      - name: Create zip
-        run: |
-          cd build
-          zip -r vortex.zip vortex
-
-      - name: Upload release asset
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: build/vortex.zip
+          tag_name: ${{ env.VERSION }}
+          name: "Vortex ${{ env.VERSION }}"
+          body: "Automated release of Vortex plugin v${{ env.VERSION }}"
+          files: dist/vortex-${{ env.VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
