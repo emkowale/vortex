@@ -1,0 +1,31 @@
+name: Build Vortex Release
+
+on:
+  push:
+    tags:
+      - 'v*'   # Run only when pushing a version tag like v1.0.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare plugin folder
+        run: |
+          mkdir -p build/vortex
+          rsync -av --exclude='.git' --exclude='.github' ./ build/vortex/
+
+      - name: Create zip
+        run: |
+          cd build
+          zip -r vortex.zip vortex
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/vortex.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

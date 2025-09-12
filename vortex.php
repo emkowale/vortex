@@ -1,9 +1,16 @@
 <?php
 /**
  * Plugin Name: Vortex - Shareable Carts
+ * Plugin URI:  https://github.com/emkowale/vortex
  * Description: Create a short link from the current cart that pre-fills WooCommerce cart for others.
- * Version: 0.3.0
- * Author: Eric Kowalewski
+ * Version:     1.0.0
+ * Author:      Eric Kowalewski
+ * Author URI:  https://github.com/emkowale
+ * License:     GPL-2.0+
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.txt
+ * Update URI:  https://github.com/emkowale/vortex
+ * Text Domain: vortex
+ * Domain Path: /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -84,3 +91,7 @@ function vortex_activate() { vortex_rewrite(); flush_rewrite_rules(); }
 function vortex_deactivate() { flush_rewrite_rules(); }
 register_activation_hook( __FILE__, 'vortex_activate' );
 register_deactivation_hook( __FILE__, 'vortex_deactivate' );
+
+/* --- GitHub Updater --- */
+require_once __DIR__ . '/updater.php';
+new Vortex_GitHub_Updater( __FILE__ );
