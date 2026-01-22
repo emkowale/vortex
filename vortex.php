@@ -3,7 +3,7 @@
  * Plugin Name: Vortex - Shareable Carts
  * Plugin URI:  https://github.com/emkowale/vortex
  * Description: Create a short link from the current cart that pre-fills WooCommerce cart for others.
- * 	.0.3
+ * Plugin 	.0.4
  * Author:      Eric Kowalewski
  * Author URI:  https://github.com/emkowale
  * License:     GPL-2.0+
@@ -134,9 +134,10 @@ function vortex_ajax_create() {
     }
 
     $token = wp_generate_password( 8, false );
-    set_transient( 'vortex_' . $token, $export, DAY_IN_SECONDS ); // 24h
+    // Store permanently so links do not expire.
+    update_option( 'vortex_' . $token, $export, false );
 
-    $link = esc_url( home_url( '/vortex/' . $token ) );
+    $link = esc_url( home_url( '/cart-link/' . $token ) );
     wp_send_json_success( [ 'link' => $link ] );
 }
 add_action( 'wp_ajax_vortex_create_cart_link', 'vortex_ajax_create' );
@@ -178,14 +179,14 @@ function vortex_extract_cart_item_data( $item ) {
 function vortex_show_link_notice() {
     if ( empty( $_GET['vortex_token'] ) ) return;
     $token = sanitize_text_field( $_GET['vortex_token'] );
-    $link = esc_url( home_url( '/vortex/' . $token ) );
+    $link = esc_url( home_url( '/cart-link/' . $token ) );
     wc_print_notice( 'Your cart link: <a href="' . $link . '" target="_blank">' . $link . '</a> <button id="vortex-copy" data-link="' . esc_attr( $link ) . '">Copy</button>', 'notice' );
     echo "<script>document.addEventListener('click',function(e){if(e.target && e.target.id==='vortex-copy'){navigator.clipboard.writeText(e.target.dataset.link).then(()=>alert('Link copied'))}});</script>";
 }
 add_action( 'woocommerce_before_cart', 'vortex_show_link_notice' );
 
-/* --- Public endpoint to consume a token: /vortex/{token} --- */
-function vortex_rewrite() { add_rewrite_rule( '^vortex/([^/]*)/?', 'index.php?vortex_token=$matches[1]', 'top' ); }
+/* --- Public endpoint to consume a token: /cart-link/{token} --- */
+function vortex_rewrite() { add_rewrite_rule( '^cart-link/([^/]*)/?', 'index.php?vortex_token=$matches[1]', 'top' ); }
 add_action( 'init', 'vortex_rewrite' );
 function vortex_query_var( $vars ) { $vars[] = 'vortex_token'; return $vars; }
 add_filter( 'query_vars', 'vortex_query_var' );
@@ -193,7 +194,11 @@ add_filter( 'query_vars', 'vortex_query_var' );
 function vortex_load_token() {
     $token = get_query_var( 'vortex_token' );
     if ( ! $token ) return;
-    $data = get_transient( 'vortex_' . $token );
+    $data = get_option( 'vortex_' . $token );
+    if ( ! $data ) {
+        // Back-compat for links created before permanent storage change.
+        $data = get_transient( 'vortex_' . $token );
+    }
     if ( ! $data ) wp_die( 'Cart link expired or invalid.' );
     if ( ! function_exists( 'WC' ) ) wp_die( 'WooCommerce required.' );
 
