@@ -45,7 +45,7 @@ BEGIN{in_header=0; hcount=0}
     print; next
   }
   header[++hcount]=$0
-  if ($0 ~ /^\*\//) {
+  if ($0 ~ /^[[:space:]]*\*\//) {
     has=0; insertAfter=0; desc=0; puri=0; pname=0;
     for (i=1;i<=hcount;i++) {
       line=header[i]
@@ -113,7 +113,7 @@ BEGIN{in_header=0; hcount=0}
     print; next
   }
   header[++hcount]=$0
-  if ($0 ~ /^\*\//) {
+  if ($0 ~ /^[[:space:]]*\*\//) {
     for (i=1;i<=hcount;i++) {
       line=header[i]
       if (is_malformed(line)) { continue }
