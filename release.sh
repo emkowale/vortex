@@ -8,6 +8,7 @@ PLUGIN_SLUG="vortex"
 MAIN_FILE="vortex.php"
 REMOTE="origin"
 REMOTE_URL="git@github.com:${OWNER}/${REPO}.git"
+CHANGELOG_FILE="CHANGELOG.md"
 
 # Usage: ./release.sh [patch|minor|major]
 BUMP_TYPE="${1:-patch}"
@@ -60,9 +61,28 @@ perl -0pi -e "s/(Version:\s*)[0-9]+\.[0-9]+\.[0-9]+/\1${NEW_VERSION}/i" "${PLUGI
 # Update PLUGIN_VERSION constant if present
 perl -0pi -e "s/(define\(\s*'PLUGIN_VERSION'\s*,\s*')[^']+(')/\1${NEW_VERSION}\2/" "${PLUGIN_FILE}" || true
 
+# Update changelog (prepend new release section if missing)
+DATE="$(date +%Y-%m-%d)"
+if [[ ! -f "${CHANGELOG_FILE}" ]]; then
+  cat > "${CHANGELOG_FILE}" <<'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+EOF
+fi
+
+if ! grep -q "^## ${NEW_VERSION} " "${CHANGELOG_FILE}"; then
+  tmpfile="$(mktemp)"
+  {
+    printf "## %s - %s\n\n- Automated release.\n\n" "${NEW_VERSION}" "${DATE}"
+    cat "${CHANGELOG_FILE}"
+  } > "${tmpfile}"
+  mv "${tmpfile}" "${CHANGELOG_FILE}"
+fi
+
 echo "🚀 Releasing $(basename "${PLUGIN_FILE}") v${NEW_VERSION}..."
 
-git add "${PLUGIN_FILE}" release.sh
+git add "${PLUGIN_FILE}" "${CHANGELOG_FILE}" release.sh
 git commit -m "Release v${NEW_VERSION}" >/dev/null 2>&1 || echo "⚠️  Nothing to commit"
 
 git tag -f "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
