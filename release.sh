@@ -36,12 +36,12 @@ perl -0pi -e 's/[\x00-\x08\x0B\x0C\x0E-\x1F]//g' "${PLUGIN_FILE}"
 
 # Ensure a proper Version: line exists and remove malformed version-only lines.
 tmpfile="$(mktemp)"
-awk -v insertver="0.0.0" '
-function is_malformed(line) { return line ~ /^\s*\*\s*\.?[0-9]+\.[0-9]+(\.[0-9]+)?\s*$/ }
-BEGIN{in=0; hcount=0}
+if ! awk -v insertver="0.0.0" '
+function is_malformed(line) { return line ~ /^[[:space:]]*\*[[:space:]]*\.?[0-9]+\.[0-9]+(\.[0-9]+)?[[:space:]]*$/ }
+BEGIN{in_header=0; hcount=0}
 {
-  if (!in) {
-    if ($0 ~ /^\/\*\*/) { in=1; hcount=0; header[++hcount]=$0; next }
+  if (!in_header) {
+    if ($0 ~ /^\/\*\*/) { in_header=1; hcount=0; header[++hcount]=$0; next }
     print; next
   }
   header[++hcount]=$0
@@ -49,10 +49,10 @@ BEGIN{in=0; hcount=0}
     has=0; insertAfter=0; desc=0; puri=0; pname=0;
     for (i=1;i<=hcount;i++) {
       line=header[i]
-      if (line ~ /^\s*\*\s*Version:/) { has=1 }
-      if (!desc && line ~ /^\s*\*\s*Description:/) desc=i
-      if (!puri && line ~ /^\s*\*\s*Plugin URI:/) puri=i
-      if (!pname && line ~ /^\s*\*\s*Plugin Name:/) pname=i
+      if (line ~ /^[[:space:]]*\*[[:space:]]*Version:/) { has=1 }
+      if (!desc && line ~ /^[[:space:]]*\*[[:space:]]*Description:/) desc=i
+      if (!puri && line ~ /^[[:space:]]*\*[[:space:]]*Plugin URI:/) puri=i
+      if (!pname && line ~ /^[[:space:]]*\*[[:space:]]*Plugin Name:/) pname=i
     }
     if (desc) insertAfter=desc; else if (puri) insertAfter=puri; else if (pname) insertAfter=pname
     for (i=1;i<=hcount;i++) {
@@ -64,16 +64,21 @@ BEGIN{in=0; hcount=0}
         has=1
       }
     }
-    in=0
+    in_header=0
   }
   next
 }
 END{
-  if (in) { for (i=1;i<=hcount;i++) print header[i] }
+  if (in_header) { for (i=1;i<=hcount;i++) print header[i] }
 }
-' "${PLUGIN_FILE}" > "${tmpfile}" && mv "${tmpfile}" "${PLUGIN_FILE}"
+' "${PLUGIN_FILE}" > "${tmpfile}"; then
+  rm -f "${tmpfile}"
+  echo "❌ Failed to normalize header in ${PLUGIN_FILE}"
+  exit 1
+fi
+mv "${tmpfile}" "${PLUGIN_FILE}"
 
-CURRENT_VERSION="$(awk 'BEGIN{v=""} /^\s*\*\s*Version:/ { if (match($0, /[0-9]+\.[0-9]+\.[0-9]+/)) { v=substr($0,RSTART,RLENGTH); exit } } END{print v}' "${PLUGIN_FILE}")"
+CURRENT_VERSION="$(awk 'BEGIN{v=""} /^[[:space:]]*\*[[:space:]]*Version:/ { if (match($0, /[0-9]+\.[0-9]+\.[0-9]+/)) { v=substr($0,RSTART,RLENGTH); exit } } END{print v}' "${PLUGIN_FILE}")"
 if [[ -z "${CURRENT_VERSION}" ]]; then
   echo "❌ Couldn't parse Version: from ${PLUGIN_FILE}"
   exit 1
@@ -99,12 +104,12 @@ NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 
 # Update plugin header version (and strip malformed version-only lines).
 tmpfile="$(mktemp)"
-awk -v newver="${NEW_VERSION}" '
-function is_malformed(line) { return line ~ /^\s*\*\s*\.?[0-9]+\.[0-9]+(\.[0-9]+)?\s*$/ }
-BEGIN{in=0; hcount=0}
+if ! awk -v newver="${NEW_VERSION}" '
+function is_malformed(line) { return line ~ /^[[:space:]]*\*[[:space:]]*\.?[0-9]+\.[0-9]+(\.[0-9]+)?[[:space:]]*$/ }
+BEGIN{in_header=0; hcount=0}
 {
-  if (!in) {
-    if ($0 ~ /^\/\*\*/) { in=1; hcount=0; header[++hcount]=$0; next }
+  if (!in_header) {
+    if ($0 ~ /^\/\*\*/) { in_header=1; hcount=0; header[++hcount]=$0; next }
     print; next
   }
   header[++hcount]=$0
@@ -112,20 +117,25 @@ BEGIN{in=0; hcount=0}
     for (i=1;i<=hcount;i++) {
       line=header[i]
       if (is_malformed(line)) { continue }
-      if (line ~ /^\s*\*\s*Version:/) {
+      if (line ~ /^[[:space:]]*\*[[:space:]]*Version:/) {
         print " * Version:     " newver
         continue
       }
       print line
     }
-    in=0
+    in_header=0
   }
   next
 }
 END{
-  if (in) { for (i=1;i<=hcount;i++) print header[i] }
+  if (in_header) { for (i=1;i<=hcount;i++) print header[i] }
 }
-' "${PLUGIN_FILE}" > "${tmpfile}" && mv "${tmpfile}" "${PLUGIN_FILE}"
+' "${PLUGIN_FILE}" > "${tmpfile}"; then
+  rm -f "${tmpfile}"
+  echo "❌ Failed to update Version header in ${PLUGIN_FILE}"
+  exit 1
+fi
+mv "${tmpfile}" "${PLUGIN_FILE}"
 
 # Update PLUGIN_VERSION constant if present
 perl -0pi -e "s/(define\(\s*'PLUGIN_VERSION'\s*,\s*')[^']+(')/\1${NEW_VERSION}\2/" "${PLUGIN_FILE}" || true
