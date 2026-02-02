@@ -1,3 +1,11 @@
+## 0.0.1 - 2026-02-02
+
+- Automated release.
+
+## 1.0.8 - 2026-02-02
+
+- Automated release.
+
 ## 1.0.7 - 2026-02-02
 
 - Automated release.

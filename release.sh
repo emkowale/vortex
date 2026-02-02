@@ -31,10 +31,19 @@ else
   echo "ℹ️  Detected plugin file: ${PLUGIN_FILE}"
 fi
 
+# Clean malformed version-only lines in the header (no label/colon).
+perl -0pi -e 'if (m#^/\\*\\*.*?\\*/#s) { my $h=$&; my $r=$h; $r =~ s/^\\s*\\*\\s*[^:\\n]*\\d+\\.\\d+[^:\\n]*\\n//mg; s/\\Q$h\\E/$r/s; }' "${PLUGIN_FILE}"
+
 CURRENT_VERSION="$(grep -i "Version:" "${PLUGIN_FILE}" 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
 if [[ -z "${CURRENT_VERSION}" ]]; then
-  echo "❌ Couldn't parse Version: from ${PLUGIN_FILE}"
-  exit 1
+  echo "⚠️  No valid Version: header found. Inserting one."
+  # Insert Version header after Description (or Plugin URI if Description is missing)
+  perl -0pi -e "if (s#(\\*\\s*Description:.*\\n)#\$1 * Version: 0.0.0\\n#i) { } elsif (s#(\\*\\s*Plugin URI:.*\\n)#\$1 * Version: 0.0.0\\n#i) { }" "${PLUGIN_FILE}"
+  CURRENT_VERSION="$(grep -i "Version:" "${PLUGIN_FILE}" 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+  if [[ -z "${CURRENT_VERSION}" ]]; then
+    echo "❌ Couldn't insert Version: into ${PLUGIN_FILE}"
+    exit 1
+  fi
 fi
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION}"
