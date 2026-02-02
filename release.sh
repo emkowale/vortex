@@ -31,8 +31,8 @@ else
   echo "ℹ️  Detected plugin file: ${PLUGIN_FILE}"
 fi
 
-# Strip control chars (e.g., stray backspace) from the header/file.
-perl -0pi -e 's/[\x00-\x08\x0B\x0C\x0E-\x1F]//g' "${PLUGIN_FILE}"
+# Normalize line endings to LF, then strip control chars (e.g., stray backspace).
+perl -0pi -e 's/\r\n/\n/g; s/\r/\n/g; s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g' "${PLUGIN_FILE}"
 
 # Ensure a proper Version: line exists and remove malformed version-only lines.
 tmpfile="$(mktemp)"
